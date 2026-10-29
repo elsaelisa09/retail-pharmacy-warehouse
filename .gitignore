@@ -1,0 +1,22 @@
+# Konfigurasi lokal
+.env
+.env.*
+!.env.example
+
+# Dataset dan hasil pengolahan
+/data/
+/Retail Pharmacy Sales and Stock Dataset in Indonesia, 2023-2025/
+*.zip
+
+# Cache Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environment lokal
+.venv/
+venv/
+
+# Log lokal
+logs/
+*.log
