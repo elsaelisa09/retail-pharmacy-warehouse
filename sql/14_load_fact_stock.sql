@@ -33,7 +33,6 @@ SELECT
     s.unit,
     s.drug_type,
     s.status
-
 FROM staging.stock_movements AS s
 
 JOIN warehouse.dim_product AS p

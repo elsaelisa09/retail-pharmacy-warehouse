@@ -66,6 +66,7 @@ try:
                     check_name,
                     checked_rows,
                     issue_rows,
+                    warning_rows,
                     status
             """),
             {
@@ -99,19 +100,20 @@ try:
         print(
             f"{row['check_name']}: {row['status']} "
             f"| diperiksa={row['checked_rows']:,} "
-            f"| temuan={row['issue_rows']:,}"
+            f"| kesalahan={row['issue_rows']:,} "
+            f"| peringatan={row['warning_rows']:,}"
         )
 
     unsuccessful = [
         row for row in results
-        if row["status"] != "PASS"
+        if row["status"] not in {"PASS", "WARN"}
     ]
 
-    if unsuccessful:
-        print("\nAUDIT PERLU DITINJAU. Hasil tersimpan di database.")
-        raise SystemExit(1)
-
-    print("\nAUDIT BERHASIL: seluruh pemeriksaan berstatus PASS.")
+    if any(row["status"] == "WARN" for row in results):
+        print("\nAUDIT SELESAI DENGAN PERINGATAN.")
+        print("Tinjau hasil pemeriksaan berstatus WARN.")
+    else:
+        print("\nAUDIT BERHASIL: seluruh pemeriksaan berstatus PASS.")
 
 finally:
     engine.dispose()

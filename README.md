@@ -24,12 +24,13 @@ Jumlah berikut cocok antara raw, staging, dan fakta:
 |---|---:|---:|
 | Januari 2023 | 19.813 | 21.598 |
 | Februari 2023 | 18.485 | 20.134 |
+| Maret 2023 | 21.287 | 23.550 |
 
-- Dimensi produk: 1.961 kode unik dari kedua bulan.
+- Dimensi produk: 2.081 kode unik dari ketiga bulan.
 - Dimensi kalender: 1.096 tanggal untuk 2023-2025.
-- Pemeriksaan kualitas: 13 pemeriksaan per eksekusi pipeline.
-- Pipeline Januari dan Februari berhasil mencatat status SUCCESS.
-- Pemuatan ulang batch yang diuji mempertahankan jumlah baris.
+- Pemeriksaan kualitas: 14 pemeriksaan per eksekusi pipeline.
+- Pipeline berhasil dijalankan untuk Januari, Februari, dan Maret.
+- Eksekusi terbaru Maret selesai dengan 12 PASS dan 2 WARN serta kode keluar 0.
 
 Januari memiliki 10.918 nomor faktur unik. Jumlah `TotalPrice` Januari sebesar 369.527.611 telah direkonsiliasi antara staging dan fakta. Nilai ini merupakan nilai penjualan tercatat, bukan laba.
 
@@ -233,14 +234,42 @@ Hasil tersimpan pada `audit.data_quality_results`. Status pemeriksaan dapat beru
 
 Riwayat pipeline tersimpan pada `audit.pipeline_runs` dengan status RUNNING, SUCCESS, atau FAILED. Run ID audit dan Pipeline Run ID merupakan identitas terpisah.
 
-## Pengujian
+### Stok: 5 pemeriksaan
 
-- Pipeline tujuh tahap berhasil untuk Januari dan Februari 2023.
-- Seluruh 13 pemeriksaan PASS pada kedua periode.
-- Jumlah baris raw, staging, dan fakta sesuai untuk kedua bulan.
-- Penambahan 201 produk baru menghasilkan total 1.961 produk.
-- Pengulangan pemuatan dimensi tidak menambah produk yang sudah tersedia.
-- Pada pilot Januari sebelumnya, simulasi file input hilang menghasilkan FAILED; setelah file dikembalikan, eksekusi kembali SUCCESS.
+- Kesinambungan saldo antarcatatan, termasuk lintas bulan jika catatan sebelumnya tersedia.
+- Timestamp sama dalam kelompok produk, gudang, dan satuan.
+- Rekonsiliasi saldo bulanan.
+- Saldo awal atau akhir negatif.
+- Rekonsiliasi kunci dan nilai stok antara staging dan fakta, termasuk pemetaan produk dan tanggal.
+
+Hasil tersimpan pada `audit.data_quality_results`.
+
+| Status | Makna dan tindakan |
+|---|---|
+| PASS | Tidak ditemukan masalah pada pemeriksaan tersebut |
+| WARN | Temuan disimpan untuk ditinjau; proses dapat berlanjut |
+| FAIL | Ditemukan kesalahan yang menghentikan proses |
+| NO_DATA | Tidak ada data yang dapat diperiksa; proses dihentikan |
+
+`issue_rows` mencatat kesalahan, sedangkan `warning_rows` mencatat peringatan.
+
+### Temuan data
+
+| Periode | Baris bertimestamp sama | Baris dengan saldo awal atau akhir negatif |
+|---|---:|---:|
+| Januari 2023 | 0 | 69 |
+| Februari 2023 | 0 | 19 |
+| Maret 2023 | 16 | 106 |
+
+Catatan bertimestamp sama yang ditinjau memiliki nomor dokumen berbeda dan saldo berkesinambungan. Pengurutan memakai timestamp dan identitas sumber.
+
+Pada contoh produk SW2106001997, saldo -10 juga ditemukan pada raw. Nilai sumber dipertahankan dan ditandai untuk ditinjau.
+
+Satu baris dapat memicu beberapa pemeriksaan. Jumlah peringatan antar pemeriksaan tidak otomatis menunjukkan jumlah baris unik.
+
+Riwayat pipeline tersimpan pada `audit.pipeline_runs` dengan status RUNNING, SUCCESS, atau FAILED. SUCCESS menunjukkan eksekusi selesai sesuai aturan pemeriksaan; peringatan data tetap perlu ditinjau.
+
+Run ID audit dan Pipeline Run ID merupakan identitas terpisah.
 
 ## Batasan
 
