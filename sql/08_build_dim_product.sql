@@ -15,7 +15,6 @@ WITH product_records AS (
         category,
         drug_class
     FROM staging.sales_transactions
-    WHERE source_period = DATE '2023-01-01'
 
     UNION ALL
 
@@ -25,7 +24,16 @@ WITH product_records AS (
         category,
         drug_class
     FROM staging.stock_movements
-    WHERE source_period = DATE '2023-01-01'
+),
+
+product_candidates AS (
+    SELECT
+        drug_code,
+        MAX(drug_name) AS drug_name,
+        MAX(category) AS category,
+        MAX(drug_class) AS drug_class
+    FROM product_records
+    GROUP BY drug_code
 )
 
 INSERT INTO warehouse.dim_product (
@@ -35,10 +43,15 @@ INSERT INTO warehouse.dim_product (
     drug_class
 )
 SELECT
-    drug_code,
-    MAX(drug_name),
-    MAX(category),
-    MAX(drug_class)
-FROM product_records
-GROUP BY drug_code
-ORDER BY drug_code;
+    p.drug_code,
+    p.drug_name,
+    p.category,
+    p.drug_class
+FROM product_candidates AS p
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM warehouse.dim_product AS d
+    WHERE d.drug_code = p.drug_code
+)
+ORDER BY p.drug_code
+ON CONFLICT (drug_code) DO NOTHING;

@@ -2,10 +2,14 @@ from datetime import date
 
 from sqlalchemy import MetaData, Table, delete, func, select, text
 
+from src.cli import get_source_period
 from src.db import PROJECT_DIR, create_db_engine
 
-# Runner ini khusus pilot Januari 2023.
-PERIOD_DATE = date(2023, 1, 1)
+PERIOD_TEXT = get_source_period(
+    "Memuat ulang satu bulan data staging ke tabel fakta."
+)
+
+PERIOD_DATE = date.fromisoformat(f"{PERIOD_TEXT}-01")
 
 jobs = [
     {
@@ -81,7 +85,10 @@ try:
                 delete(fact_table).where(fact_filter)
             )
 
-            connection.execute(text(sql_statement))
+            connection.execute(
+                text(sql_statement),
+                {"period_date": PERIOD_DATE},
+            )
 
             rows_after = connection.execute(count_query).scalar_one()
 
@@ -100,6 +107,7 @@ try:
 
     # Pesan berhasil ditampilkan setelah kedua pemuatan di-commit.
     print("\nPEMUATAN ULANG FAKTA BERHASIL")
+    print(f"Periode: {PERIOD_TEXT}")
 
     for result in results:
         print(f"\nTabel: warehouse.{result['table']}")

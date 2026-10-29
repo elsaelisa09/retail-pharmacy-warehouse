@@ -7,15 +7,20 @@ from getpass import getpass
 from sqlalchemy import text
 
 from src.db import PROJECT_DIR, create_db_engine
+from src.cli import get_source_period
+
+
 
 STEPS = [
     ("Memuat ulang raw stok", "15_reload_raw_stock.py"),
     ("Memuat ulang raw penjualan", "16_reload_raw_sales.py"),
     ("Memuat ulang staging", "17_reload_staging.py"),
     ("Menjalankan audit penjualan", "19_run_sales_quality_checks.py"),
+    ("Memperbarui dimensi produk", "20_refresh_product_dimension.py"),
     ("Memuat ulang fakta", "18_reload_facts.py"),
     ("Menjalankan audit stok", "14_run_stock_quality_checks.py"),
 ]
+
 
 
 def finish_run(
@@ -48,6 +53,12 @@ def finish_run(
 
 
 def main():
+
+    period_text = get_source_period(
+        "Menjalankan pipeline pharmacy warehouse untuk satu bulan."
+    )
+    period_date = date.fromisoformat(f"{period_text}-01")
+
     child_env = os.environ.copy()
 
     if "DB_PASSWORD" not in child_env:
@@ -73,11 +84,14 @@ def main():
                 """),
                 {
                     "pipeline_name": "retail_pharmacy_pilot",
-                    "source_period": date(2023, 1, 1),
+                    "source_period": period_date,
                 },
             ).scalar_one()
 
-        print("\nPIPELINE PILOT JANUARI 2023", flush=True)
+        print(
+            f"\nPIPELINE PHARMACY WAREHOUSE — PERIODE {period_text}",
+            flush=True,
+        )
         print(f"Pipeline Run ID: {pipeline_run_id}", flush=True)
 
         for number, (description, filename) in enumerate(STEPS, start=1):
@@ -89,7 +103,12 @@ def main():
             )
 
             subprocess.run(
-                [sys.executable, str(PROJECT_DIR / filename)],
+                [
+                    sys.executable,
+                    str(PROJECT_DIR / filename),
+                    "--period",
+                    period_text,
+                ],
                 cwd=str(PROJECT_DIR),
                 env=child_env,
                 check=True,

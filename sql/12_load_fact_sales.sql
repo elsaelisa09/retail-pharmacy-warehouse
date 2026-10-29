@@ -51,4 +51,4 @@ JOIN warehouse.dim_date AS d
     ON d.full_date = s.sale_at::DATE
 
 WHERE s.source_file = 'sales_raw.csv'
-  AND s.source_period = DATE '2023-01-01';
+  AND s.source_period = :period_date;

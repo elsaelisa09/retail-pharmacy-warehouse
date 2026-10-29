@@ -1,7 +1,7 @@
 WITH run_context AS MATERIALIZED (
     SELECT
         gen_random_uuid() AS run_id,
-        DATE '2023-01-01' AS source_period
+        CAST(:period_date AS DATE) AS source_period
 ),
 
 stock_metrics AS (

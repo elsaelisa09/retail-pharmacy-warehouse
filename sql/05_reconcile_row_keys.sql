@@ -5,7 +5,7 @@ WITH raw_keys AS (
         (source_period || '-01')::DATE AS source_period,
         "RowNumber"::BIGINT AS source_row_number
     FROM raw.sales_transactions
-    WHERE source_period = '2023-01'
+    WHERE source_period = :period_text
 
     UNION ALL
 
@@ -15,7 +15,7 @@ WITH raw_keys AS (
         (source_period || '-01')::DATE AS source_period,
         "RowNumber"::BIGINT AS source_row_number
     FROM raw.stock_movements
-    WHERE source_period = '2023-01'
+    WHERE source_period = :period_text
 ),
 
 staging_keys AS (
@@ -25,7 +25,7 @@ staging_keys AS (
         source_period,
         source_row_number
     FROM staging.sales_transactions
-    WHERE source_period = DATE '2023-01-01'
+    WHERE source_period = :period_date
 
     UNION ALL
 
@@ -35,7 +35,7 @@ staging_keys AS (
         source_period,
         source_row_number
     FROM staging.stock_movements
-    WHERE source_period = DATE '2023-01-01'
+    WHERE source_period = :period_date
 )
 
 SELECT

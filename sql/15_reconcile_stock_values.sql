@@ -2,7 +2,7 @@ WITH staging_pilot AS (
     SELECT *
     FROM staging.stock_movements
     WHERE source_file = 'stock_raw.csv'
-      AND source_period = DATE '2023-01-01'
+      AND source_period = :period_date
 ),
 
 warehouse_pilot AS (
@@ -19,7 +19,7 @@ warehouse_pilot AS (
         ON d.date_key = f.date_key
 
     WHERE f.source_file = 'stock_raw.csv'
-      AND f.source_period = DATE '2023-01-01'
+      AND f.source_period = :period_date
 )
 
 SELECT

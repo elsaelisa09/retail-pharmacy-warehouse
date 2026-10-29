@@ -58,7 +58,7 @@ CROSS JOIN LATERAL (
 ) AS v(field_name, raw_value, staging_value)
 
 WHERE r.source_file = 'sales_raw.csv'
-  AND r.source_period = '2023-01'
+    AND r.source_period = :period_text
 
 GROUP BY v.field_name
 ORDER BY v.field_name;

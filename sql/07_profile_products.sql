@@ -3,13 +3,13 @@
 WITH sales_products AS (
     SELECT DISTINCT drug_code
     FROM staging.sales_transactions
-    WHERE source_period = DATE '2023-01-01'
+
 ),
 
 stock_products AS (
     SELECT DISTINCT drug_code
     FROM staging.stock_movements
-    WHERE source_period = DATE '2023-01-01'
+
 )
 
 SELECT
@@ -40,13 +40,13 @@ FULL OUTER JOIN stock_products AS t
 WITH product_records AS (
     SELECT drug_code, drug_name, category, drug_class
     FROM staging.sales_transactions
-    WHERE source_period = DATE '2023-01-01'
+
 
     UNION ALL
 
     SELECT drug_code, drug_name, category, drug_class
     FROM staging.stock_movements
-    WHERE source_period = DATE '2023-01-01'
+
 ),
 
 product_profile AS (
@@ -75,3 +75,30 @@ SELECT
     ) AS multiple_classes
 
 FROM product_profile;
+
+-- Pemeriksaan 3: kode produk staging yang belum ada di dimensi.
+
+WITH product_codes AS (
+    SELECT drug_code
+    FROM staging.sales_transactions
+
+    UNION
+
+    SELECT drug_code
+    FROM staging.stock_movements
+)
+
+SELECT
+    COUNT(*) AS staging_products,
+
+    COUNT(*) FILTER (
+        WHERE d.product_key IS NOT NULL
+    ) AS already_in_dimension,
+
+    COUNT(*) FILTER (
+        WHERE d.product_key IS NULL
+    ) AS new_products
+
+FROM product_codes AS p
+LEFT JOIN warehouse.dim_product AS d
+    ON d.drug_code = p.drug_code;

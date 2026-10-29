@@ -3,9 +3,19 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
+from src.cli import get_source_period
 from src.db import PROJECT_DIR, create_db_engine
 
-SOURCE_PERIOD = date(2023, 1, 1)
+PERIOD_TEXT = get_source_period(
+    "Memeriksa kualitas data penjualan raw ke staging untuk satu bulan."
+)
+
+SOURCE_PERIOD = date.fromisoformat(f"{PERIOD_TEXT}-01")
+
+QUERY_PARAMS = {
+    "period_text": PERIOD_TEXT,
+    "period_date": SOURCE_PERIOD,
+}
 
 EXPECTED_FIELDS = [
     "quantity",
@@ -32,7 +42,8 @@ try:
     with engine.begin() as connection:
         # Memakai kembali pemeriksaan identitas baris.
         coverage_results = connection.execute(
-            text(read_sql("05_reconcile_row_keys.sql"))
+            text(read_sql("05_reconcile_row_keys.sql")),
+            QUERY_PARAMS,
         ).mappings().all()
 
         sales_coverage = next(
@@ -67,7 +78,8 @@ try:
 
         # Memakai kembali pemeriksaan nilai per baris.
         value_results = connection.execute(
-            text(read_sql("06_reconcile_sales_values.sql"))
+            text(read_sql("06_reconcile_sales_values.sql")),
+            QUERY_PARAMS,
         ).mappings().all()
 
         values_by_field = {
@@ -133,7 +145,9 @@ try:
         ).mappings().all()
 
     # Hasil audit sudah tersimpan sebelum status dievaluasi.
+
     print(f"\nRun ID audit penjualan: {run_id}")
+    print(f"Periode: {PERIOD_TEXT}")
 
     for row in results:
         print(

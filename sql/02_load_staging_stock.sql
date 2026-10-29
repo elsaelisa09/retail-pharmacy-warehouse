@@ -75,4 +75,4 @@ SELECT
 
 FROM raw.stock_movements AS r
 WHERE r.source_file = 'stock_raw.csv'
-  AND r.source_period = '2023-01';
+  AND r.source_period = :source_period;
