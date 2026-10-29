@@ -19,7 +19,12 @@ stock_metrics AS (
 
         COUNT(*) FILTER (
             WHERE same_timestamp_count > 1
-        ) AS timestamp_issues
+        ) AS timestamp_warnings,
+
+        COUNT(*) FILTER (
+            WHERE initial_stock < 0
+               OR remaining_stock < 0
+        ) AS negative_balance_warnings
 
     FROM audit.stock_continuity
     WHERE source_file = 'stock_raw.csv'
@@ -47,6 +52,7 @@ checks AS (
         'stock_continuity' AS check_name,
         checked_links AS checked_rows,
         continuity_issues AS issue_rows,
+        0::BIGINT AS warning_rows,
         'Membandingkan stok awal dengan saldo catatan sebelumnya.'
             AS details
     FROM stock_metrics
@@ -56,8 +62,9 @@ checks AS (
     SELECT
         'stock_timestamp_ambiguity',
         total_rows,
-        timestamp_issues,
-        'Mendeteksi waktu sama dalam kelompok produk, gudang, dan satuan.'
+        0::BIGINT,
+        timestamp_warnings,
+        'Timestamp sama perlu ditinjau; pengurutan memakai waktu dan identitas sumber.'
     FROM stock_metrics
 
     UNION ALL
@@ -66,8 +73,19 @@ checks AS (
         'stock_monthly_balance',
         checked_groups,
         balance_issues,
+        0::BIGINT,
         'Memeriksa saldo awal ditambah masuk dikurangi keluar terhadap saldo terakhir.'
     FROM monthly_metrics
+
+    UNION ALL
+
+    SELECT
+        'stock_negative_balance',
+        total_rows,
+        0::BIGINT,
+        negative_balance_warnings,
+        'Menandai catatan dengan saldo awal atau akhir negatif untuk ditinjau.'
+    FROM stock_metrics
 )
 
 INSERT INTO audit.data_quality_results (
@@ -76,6 +94,7 @@ INSERT INTO audit.data_quality_results (
     check_name,
     checked_rows,
     issue_rows,
+    warning_rows,
     details
 )
 SELECT
@@ -84,6 +103,7 @@ SELECT
     c.check_name,
     c.checked_rows,
     c.issue_rows,
+    c.warning_rows,
     c.details
 FROM run_context AS r
 CROSS JOIN checks AS c
@@ -93,4 +113,5 @@ RETURNING
     check_name,
     checked_rows,
     issue_rows,
+    warning_rows,
     status;
