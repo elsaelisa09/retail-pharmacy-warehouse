@@ -178,6 +178,28 @@ Laporan stok dikelompokkan berdasarkan produk, gudang, dan satuan. Kuantitas den
 
 Jumlah faktur unik pada laporan bulanan dihitung langsung dari fakta. Jumlah faktur unik harian tidak otomatis dapat dijumlahkan sebagai jumlah faktur unik suatu periode.
 
+## Akun dan hak akses database
+
+| Akun | Penggunaan |
+|---|---|
+| `postgres` | Administrasi, pembuatan objek, dan pemberian izin |
+| `pharmacy_etl` | Pemuatan data dan pencatatan audit pipeline |
+| `pharmacy_reader` | Pembacaan laporan pada schema `marts` |
+
+Akun ETL dan pembaca menggunakan LOGIN tanpa SUPERUSER, CREATEDB, atau CREATEROLE. Hak akses diberikan melalui:
+
+- `sql/28_create_database_roles.sql`: membuat kedua akun.
+- `sql/29_grant_reader_access.sql`: memberi akses baca laporan.
+- `sql/30_grant_pipeline_access.sql`: memberi izin yang diperlukan pipeline.
+
+Akun ETL memiliki SELECT, INSERT, dan DELETE pada tabel raw, staging, dan fakta; SELECT dan INSERT pada dimensi produk; serta SELECT pada dimensi tanggal. Akun ini dapat menambahkan hasil audit, memperbarui status eksekusi, membaca view audit dan posisi stok bulanan yang diperlukan, serta menggunakan sequence terkait. Izin CREATE pada schema warehouse tidak diberikan.
+
+Pembuatan tabel dimensi dilakukan oleh administrator saat setup. Saat runtime, `20_refresh_product_dimension.py` hanya menjalankan bagian INSERT dari SQL 08.
+
+Akun pembaca memiliki USAGE pada schema marts dan SELECT pada laporan. Pembacaan laporan bulanan berhasil diuji, sedangkan izin INSERT, UPDATE, dan DELETE pada laporan bernilai false. Pembacaan langsung tabel raw ditolak. Default privilege juga diatur untuk tabel atau view baru yang dibuat oleh postgres pada schema marts.
+
+Password ditetapkan melalui prompt psql dan tidak ditulis dalam file SQL. File `.env` berisi konfigurasi lokal dan diabaikan oleh Git.
+
 ## Instalasi awal pada database baru
 
 Bagian ini digunakan untuk menyiapkan proyek dari awal. Database yang sudah berjalan cukup menggunakan perintah pada bagian **Menjalankan pipeline**.
@@ -193,7 +215,7 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-Sesuaikan konfigurasi database pada `.env`:
+Untuk setup awal, gunakan akun administrator pada `.env`:
 
 ```dotenv
 DB_HOST=localhost
@@ -291,7 +313,53 @@ Pada tahap ini staging dan fakta masih kosong. SQL 08 membuat tabel dimensi prod
 
 SQL dengan placeholder seperti `:period_date` atau `:period_text` dijalankan melalui script Python yang memasok parameter. File tersebut tidak dijalankan langsung melalui `\i`.
 
-### 6. Jalankan pipeline
+### 6. Siapkan akun runtime dan pembaca
+
+Untuk instalasi PostgreSQL yang belum memiliki kedua role proyek, masuk sebagai postgres:
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5432 -U postgres -d retail_pharmacy_dw -W
+```
+
+Jalankan di psql:
+
+```text
+\i sql/28_create_database_roles.sql
+\password pharmacy_etl
+\password pharmacy_reader
+\i sql/29_grant_reader_access.sql
+\i sql/30_grant_pipeline_access.sql
+\q
+```
+
+Setiap perintah `\password` meminta password baru dua kali. Masukkan langsung melalui terminal. Lanjutkan pemberian izin setelah pembuatan role berhasil.
+
+Role berlaku pada tingkat instalasi PostgreSQL, bukan hanya satu database. Jika kedua role sudah dibuat sebelumnya, lewati SQL 28 dan perintah penetapan password; gunakan SQL 29 dan 30 untuk memberi izin pada database proyek. SQL 28 digunakan sekali saat role belum tersedia.
+
+### 7. Arahkan pipeline ke akun ETL
+
+Sesudah setup dan pemberian izin selesai, ubah konfigurasi `.env` menjadi:
+
+```dotenv
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=retail_pharmacy_dw
+DB_USER=pharmacy_etl
+```
+
+Periksa identitas koneksi dari PowerShell:
+
+```powershell
+python -c "from src.db import create_db_engine; print(create_db_engine().connect().exec_driver_sql('SELECT current_user, current_database()').one())"
+```
+
+Masukkan password pharmacy_etl. Hasil yang diharapkan:
+
+```text
+('pharmacy_etl', 'retail_pharmacy_dw')
+```
+
+### 8. Jalankan pipeline
 
 Ikuti bagian berikut untuk memuat ketiga bulan secara berurutan.
 
@@ -307,13 +375,33 @@ python run_pipeline.py --period 2023-03
 
 Jalankan satu per satu dan lanjutkan setelah eksekusi sebelumnya berhasil. Tanpa `--period`, nilai bawaan adalah `2023-01`.
 
-Password dimasukkan sekali untuk setiap eksekusi runner. Periksa kode keluar segera setelah suatu eksekusi:
+Gunakan password pharmacy_etl. Password dimasukkan sekali untuk setiap eksekusi runner. Periksa kode keluar segera setelah suatu eksekusi:
 
 ```powershell
 Write-Host "Kode keluar pipeline: $LASTEXITCODE"
 ```
 
 Kode 0 menunjukkan runner selesai. Hasil audit dapat tetap mengandung `WARN` yang perlu ditinjau.
+
+### Membaca laporan dengan akun pembaca
+
+Masuk melalui PowerShell:
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -p 5432 -U pharmacy_reader -d retail_pharmacy_dw -W
+```
+
+Masukkan password pharmacy_reader. Contoh query di psql:
+
+```sql
+SELECT current_user, current_database();
+
+SELECT sales_month, invoice_count, recorded_sales_value
+FROM marts.monthly_sales
+ORDER BY sales_month;
+```
+
+Akun ini digunakan untuk kebutuhan pembacaan laporan. Pengujian `SELECT 1 FROM raw.sales_transactions LIMIT 1;` menghasilkan permission denied sesuai pembatasan akses.
 
 ### Memproses bulan berikutnya
 
@@ -331,6 +419,9 @@ Hasil data April belum diuji pada versi ini. Tinjau hasil setiap tahap sebelum m
 - Data Januari, Februari, dan Maret 2023 telah dimuat melalui pipeline bulanan.
 - Audit stok terbaru, termasuk peringatan saldo negatif, telah dijalankan untuk ketiga bulan.
 - Pipeline Maret delapan tahap dengan aturan audit terbaru selesai dengan 13 PASS, 2 WARN, dan kode keluar 0.
+- Pipeline Maret berhasil dijalankan melalui akun pharmacy_etl, dengan jumlah batch tetap sama dan tanpa penambahan produk yang sudah tersedia.
+- Identitas koneksi Python terkonfirmasi sebagai pharmacy_etl. Izin INSERT dan DELETE fakta serta UPDATE riwayat pipeline tersedia, sedangkan izin CREATE pada schema warehouse bernilai false.
+- Akun pharmacy_reader berhasil membaca laporan bulanan; izin INSERT, UPDATE, dan DELETE pada laporan bernilai false, serta akses langsung ke raw ditolak.
 - Rekonsiliasi penjualan staging ke fakta PASS untuk Januari (19.813 baris), Februari (18.485 baris), dan Maret (21.287 baris).
 - Uji script rekonsiliasi untuk periode tanpa data, 2022-12, menghasilkan NO_DATA dan kode keluar 1. Uji ini menambahkan catatan audit tanpa mengubah data penjualan.
 - Jumlah baris raw, staging, dan fakta sesuai untuk ketiga bulan.

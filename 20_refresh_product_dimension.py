@@ -52,11 +52,10 @@ try:
         sql_path = PROJECT_DIR / "sql" / "08_build_dim_product.sql"
         sql_statement = sql_path.read_text(encoding="utf-8-sig")
 
-        # File 08 saat ini berisi dua perintah:
-        # CREATE TABLE, kemudian INSERT dengan CTE.
-        create_statement, insert_statement = sql_statement.split(";", 1)
+        # Tabel sudah dibuat oleh administrator saat setup.
+        # Pipeline hanya menjalankan bagian INSERT.
+        _, insert_statement = sql_statement.split(";", 1)
 
-        connection.execute(text(create_statement))
         connection.execute(text(insert_statement))
 
         rows_after = connection.execute(
