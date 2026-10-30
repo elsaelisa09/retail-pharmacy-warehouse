@@ -16,8 +16,8 @@ Jumlah baris berikut sesuai antara raw, staging, dan tabel fakta:
 
 - Dimensi produk berisi **2.081 kode unik** dari ketiga bulan.
 - Dimensi kalender berisi **1.096 tanggal** untuk 2023-2025.
-- Versi terbaru menjalankan **14 pemeriksaan kualitas**: 9 penjualan dan 5 stok.
-- Pipeline terbaru Maret menyelesaikan tujuh tahap dengan **12 PASS, 2 WARN, dan kode keluar 0**.
+- Versi terbaru menjalankan **15 pemeriksaan kualitas**: 10 penjualan dan 5 stok.
+- Pipeline terbaru Maret menyelesaikan delapan tahap dengan **13 PASS, 2 WARN, dan kode keluar 0**.
 - Pemuatan ulang batch Maret mempertahankan jumlah baris dan tidak menambahkan kode produk yang sudah tersedia.
 
 Januari memiliki 10.918 nomor faktur unik. Jumlah `TotalPrice` Januari sebesar 369.527.611 telah direkonsiliasi antara staging dan fakta. Nilai ini merupakan nilai penjualan tercatat, bukan laba.
@@ -67,7 +67,7 @@ Identitas sumber pada staging dan fakta menggunakan kombinasi `source_file`, `so
 
 ## Alur pipeline
 
-`run_pipeline.py` menjalankan tujuh tahap:
+`run_pipeline.py` menjalankan delapan tahap:
 
 1. Memuat ulang raw stok untuk bulan yang dipilih.
 2. Memuat ulang raw penjualan untuk bulan yang dipilih.
@@ -75,7 +75,8 @@ Identitas sumber pada staging dan fakta menggunakan kombinasi `source_file`, `so
 4. Memeriksa penjualan antara raw dan staging.
 5. Memeriksa konsistensi atribut dan menambahkan kode produk baru ke dimensi.
 6. Memuat kedua tabel fakta.
-7. Memeriksa kualitas stok dan rekonsiliasi staging dengan fakta.
+7. Memeriksa penjualan antara staging dan fakta.
+8. Memeriksa kualitas stok dan rekonsiliasi staging dengan fakta.
 
 Dimensi produk mencakup seluruh data staging yang tersedia. Produk baru ditambahkan dengan mempertahankan `product_key` produk lama. Pembaruan atribut produk lama belum diimplementasikan.
 
@@ -83,14 +84,22 @@ Setiap tahap menggunakan transaksi tersendiri. Jika suatu tahap gagal, runner be
 
 Pemuatan ulang mengganti batch dengan file dan periode yang sama. ID otomatis fakta dan waktu pemuatan dapat berubah; identitas sumber tetap menjadi acuan rekonsiliasi.
 
-Runner menggunakan CSV bulanan yang sudah dibuat. Pembuatan CSV melalui `07_create_pilot.py` belum termasuk dalam tujuh tahap tersebut.
+Runner menggunakan CSV bulanan yang sudah dibuat. Pembuatan CSV melalui `07_create_pilot.py` belum termasuk dalam delapan tahap tersebut.
 
 ## Pemeriksaan kualitas
 
-### Penjualan: 9 pemeriksaan
+### Penjualan: 10 pemeriksaan
+
+Raw ke staging (9 pemeriksaan):
 
 - Cakupan kunci baris antara raw dan staging.
 - Kesamaan delapan nilai: quantity, unit price, discount amount, service fee, packaging fee, subtotal, additional fee, dan total price.
+
+Staging ke fakta (1 pemeriksaan):
+
+- `sales_staging_fact_reconciliation`: memeriksa baris yang hilang, berlebih, atau berbeda nilainya, termasuk waktu, nomor faktur, satuan, nilai numerik, serta pemetaan produk dan tanggal. Ketidaksesuaian menghasilkan FAIL; periode tanpa data menghasilkan NO_DATA.
+
+View `audit.sales_fact_reconciliation` menyediakan ringkasan rekonsiliasi per periode. Script `21_run_sales_fact_quality_checks.py` memilih bulan dan menyimpan hasilnya ke tabel audit.
 
 ### Stok: 5 pemeriksaan
 
@@ -265,6 +274,7 @@ Jalankan urutan berikut di psql:
 \i sql/09_build_dim_date.sql
 \i sql/10_create_fact_sales.sql
 \i sql/13_create_fact_stock.sql
+\i sql/27_check_sales_fact_reconciliation.sql
 \i sql/16_build_daily_sales_mart.sql
 \i sql/25_build_monthly_sales_mart.sql
 \i sql/26_build_monthly_sales_daily_average.sql
@@ -318,9 +328,11 @@ Hasil data April belum diuji pada versi ini. Tinjau hasil setiap tahap sebelum m
 
 ## Pengujian yang telah dilakukan
 
-- Pipeline tujuh tahap telah dijalankan untuk Januari, Februari, dan Maret 2023.
+- Data Januari, Februari, dan Maret 2023 telah dimuat melalui pipeline bulanan.
 - Audit stok terbaru, termasuk peringatan saldo negatif, telah dijalankan untuk ketiga bulan.
-- Pipeline Maret dengan aturan audit terbaru selesai dengan 12 PASS, 2 WARN, dan kode keluar 0.
+- Pipeline Maret delapan tahap dengan aturan audit terbaru selesai dengan 13 PASS, 2 WARN, dan kode keluar 0.
+- Rekonsiliasi penjualan staging ke fakta PASS untuk Januari (19.813 baris), Februari (18.485 baris), dan Maret (21.287 baris).
+- Uji script rekonsiliasi untuk periode tanpa data, 2022-12, menghasilkan NO_DATA dan kode keluar 1. Uji ini menambahkan catatan audit tanpa mengubah data penjualan.
 - Jumlah baris raw, staging, dan fakta sesuai untuk ketiga bulan.
 - Dimensi bertambah dari 1.760 menjadi 1.961, kemudian 2.081 produk. Pada pemuatan awal Maret, runner menambahkan 120 produk secara otomatis.
 - Pemuatan ulang dimensi tidak menambah kode yang sudah tersedia.
@@ -331,7 +343,6 @@ Hasil data April belum diuji pada versi ini. Tinjau hasil setiap tahap sebelum m
 
 - Pengujian data baru mencakup Januari sampai Maret 2023; seluruh periode dataset belum diproses.
 - Sejumlah SQL eksplorasi di luar runner masih menggunakan periode tetap.
-- Pemeriksaan otomatis penjualan mencakup raw ke staging; rekonsiliasi seluruh nilai penjualan staging ke fakta belum menjadi pemeriksaan otomatis.
 - Pemeriksaan otomatis belum mencakup seluruh kolom sumber.
 - Saldo negatif dan timestamp sama telah ditandai; penyebab operasionalnya belum seluruhnya terverifikasi.
 - Dimensi produk belum menangani pembaruan atribut atau riwayat perubahan atribut.

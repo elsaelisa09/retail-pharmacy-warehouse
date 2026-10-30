@@ -15,9 +15,10 @@ STEPS = [
     ("Memuat ulang raw stok", "15_reload_raw_stock.py"),
     ("Memuat ulang raw penjualan", "16_reload_raw_sales.py"),
     ("Memuat ulang staging", "17_reload_staging.py"),
-    ("Menjalankan audit penjualan", "19_run_sales_quality_checks.py"),
+    ("Menjalankan audit penjualan raw ke staging", "19_run_sales_quality_checks.py"),
     ("Memperbarui dimensi produk", "20_refresh_product_dimension.py"),
     ("Memuat ulang fakta", "18_reload_facts.py"),
+    ("Memeriksa penjualan staging ke fakta", "21_run_sales_fact_quality_checks.py"),
     ("Menjalankan audit stok", "14_run_stock_quality_checks.py"),
 ]
 
